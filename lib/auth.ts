@@ -1,11 +1,13 @@
 import { getSession } from './session';
-import { getUserById } from './data';
+import { prisma } from './db';
 
 export async function getCurrentUser() {
   const userId = await getSession();
   if (!userId) return null;
   
-  return getUserById(userId);
+  return prisma.user.findUnique({
+    where: { id: userId }
+  });
 }
 
 export async function requireAuth() {
@@ -15,4 +17,3 @@ export async function requireAuth() {
   }
   return userId;
 }
-

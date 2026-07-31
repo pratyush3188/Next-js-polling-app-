@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPollById, votes, getPollResults } from '@/lib/data';
+import { prisma } from '@/lib/db';
+import { getPollResults } from '@/lib/polls';
 import { requireAuth } from '@/lib/auth';
 import { broadcastPollUpdate } from '@/lib/broadcast';
 
@@ -10,7 +11,10 @@ export async function POST(
   try {
     const { pollId } = await params;
     const userId = await requireAuth();
-    const poll = getPollById(pollId);
+    
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId }
+    });
 
     if (!poll) {
       return NextResponse.json(
@@ -27,20 +31,12 @@ export async function POST(
     }
 
     // Remove all votes for this poll
-    const pollVoteIndices: number[] = [];
-    votes.forEach((vote, index) => {
-      if (vote.pollId === pollId) {
-        pollVoteIndices.push(index);
-      }
-    });
-
-    // Remove votes in reverse order to maintain indices
-    pollVoteIndices.reverse().forEach(index => {
-      votes.splice(index, 1);
+    await prisma.vote.deleteMany({
+      where: { pollId: pollId }
     });
 
     // Broadcast update to SSE connections
-    broadcastPollUpdate(pollId, () => getPollResults(pollId));
+    await broadcastPollUpdate(pollId, () => getPollResults(pollId));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -57,4 +53,3 @@ export async function POST(
     );
   }
 }
-

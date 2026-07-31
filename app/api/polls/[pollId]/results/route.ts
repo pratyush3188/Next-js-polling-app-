@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPollResults, getPollById } from '@/lib/data';
+import { getPollResults } from '@/lib/polls';
+import { prisma } from '@/lib/db';
 import { addConnection, removeConnection } from '@/lib/broadcast';
 
 export async function GET(
@@ -8,7 +9,9 @@ export async function GET(
 ) {
   try {
     const { pollId } = await params;
-    const poll = getPollById(pollId);
+    
+    // Quick check if poll exists
+    const poll = await prisma.poll.findUnique({ where: { id: pollId } });
     if (!poll) {
       return NextResponse.json(
         { error: 'Poll not found' },
@@ -22,12 +25,12 @@ export async function GET(
     if (live) {
       // SSE stream for real-time updates
       const stream = new ReadableStream({
-        start(controller) {
+        async start(controller) {
           // Add controller to connections
           addConnection(pollId, controller);
 
           // Send initial data
-          const results = getPollResults(pollId);
+          const results = await getPollResults(pollId);
           if (results) {
             const data = JSON.stringify(results);
             controller.enqueue(`data: ${data}\n\n`);
@@ -49,7 +52,7 @@ export async function GET(
       });
     } else {
       // Regular JSON response
-      const results = getPollResults(pollId);
+      const results = await getPollResults(pollId);
       if (!results) {
         return NextResponse.json(
           { error: 'Poll not found' },
@@ -66,5 +69,3 @@ export async function GET(
     );
   }
 }
-
-

@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateAuthenticationOptions } from '@simplewebauthn/server';
-import { users, storeChallenge } from '@/lib/data';
+import { storeChallenge } from '@/lib/data';
+import { prisma } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
-const rpID = process.env.RP_ID || 'localhost';
-const origin = process.env.ORIGIN || `http://${rpID}:3000`;
-
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    // Get all registered passkey IDs (convert from base64 to base64url string)
-    const allowCredentials = users.map(user => ({
+    const host = request.headers.get('host')?.split(':')[0] || 'localhost';
+
+    const allUsers = await prisma.user.findMany({ select: { passkeyId: true } });
+    
+    const allowCredentials = allUsers.map(user => ({
       id: Buffer.from(user.passkeyId, 'base64').toString('base64url'),
     }));
 
     const options = await generateAuthenticationOptions({
-      rpID,
+      rpID: host,
       timeout: 60000,
       allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
       userVerification: 'preferred',
     });
 
-    // Store challenge for verification
     const challengeKey = `auth_${uuidv4()}`;
     storeChallenge(challengeKey, options.challenge);
 
@@ -33,4 +33,3 @@ export async function POST() {
     );
   }
 }
-

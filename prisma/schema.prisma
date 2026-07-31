@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(uuid())
+  username         String   @unique
+  passkeyId        String   @unique
+  passkeyPublicKey String
+  createdAt        DateTime @default(now())
+  
+  // Relations
+  polls            Poll[]
+  votes            Vote[]
+}
+
+model Poll {
+  id        String   @id @default(uuid())
+  title     String
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+  closed    Boolean  @default(false)
+
+  // Relations
+  creator   User         @relation(fields: [creatorId], references: [id])
+  creatorId String
+  options   PollOption[]
+  votes     Vote[]
+}
+
+model PollOption {
+  id        String   @id @default(uuid())
+  text      String
+  imageUrl  String?
+  
+  // Relations
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  pollId    String
+  votes     Vote[]
+}
+
+model Vote {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id])
+  userId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  pollId    String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  optionId  String
+
+  @@unique([userId, pollId]) // A user can only vote once per poll
+}

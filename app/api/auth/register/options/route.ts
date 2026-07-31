@@ -3,10 +3,6 @@ import { generateRegistrationOptions } from '@simplewebauthn/server';
 import { storeChallenge } from '@/lib/data';
 import { v4 as uuidv4 } from 'uuid';
 
-const rpName = 'Polling App';
-const rpID = process.env.RP_ID || 'localhost';
-const origin = process.env.ORIGIN || `http://${rpID}:3000`;
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -19,20 +15,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const host = request.headers.get('host')?.split(':')[0] || 'localhost';
+
     const options = await generateRegistrationOptions({
-      rpName,
-      rpID,
+      rpName: 'Polling App',
+      rpID: host,
       userName: username,
       timeout: 60000,
       attestationType: 'none',
       excludeCredentials: [],
       authenticatorSelection: {
-        authenticatorAttachment: 'platform',
         userVerification: 'preferred',
       },
     });
 
-    // Store challenge for verification
     const challengeKey = `reg_${username}_${uuidv4()}`;
     storeChallenge(challengeKey, options.challenge);
 
@@ -45,4 +41,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

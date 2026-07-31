@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPollById } from '@/lib/data';
+import { prisma } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -7,14 +7,35 @@ export async function GET(
 ) {
   try {
     const { pollId } = await params;
-    const poll = getPollById(pollId);
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId },
+      include: {
+        options: {
+          include: {
+            _count: { select: { votes: true } }
+          }
+        },
+        _count: { select: { votes: true } }
+      }
+    });
+
     if (!poll) {
       return NextResponse.json(
         { error: 'Poll not found' },
         { status: 404 }
       );
     }
-    return NextResponse.json({ poll });
+
+    // Map Prisma objects to match the expected UI structure
+    const mappedPoll = {
+      ...poll,
+      options: poll.options.map(opt => ({
+        ...opt,
+        votes: opt._count.votes
+      }))
+    };
+
+    return NextResponse.json({ poll: mappedPoll });
   } catch (error) {
     console.error('Get poll error:', error);
     return NextResponse.json(
@@ -23,4 +44,3 @@ export async function GET(
     );
   }
 }
-

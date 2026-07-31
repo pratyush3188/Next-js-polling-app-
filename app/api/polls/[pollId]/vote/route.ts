@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPollById, hasUserVoted, votes, getPollResults } from '@/lib/data';
+import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { getPollResults } from '@/lib/polls';
 import { broadcastPollUpdate } from '@/lib/broadcast';
 
 export async function POST(
@@ -20,7 +21,11 @@ export async function POST(
       );
     }
 
-    const poll = getPollById(pollId);
+    const poll = await prisma.poll.findUnique({
+      where: { id: pollId },
+      include: { options: true }
+    });
+
     if (!poll) {
       return NextResponse.json(
         { error: 'Poll not found' },
@@ -28,14 +33,23 @@ export async function POST(
       );
     }
 
-    if (poll.closed) {
+    if (poll.closed || (poll.expiresAt && new Date() > new Date(poll.expiresAt))) {
       return NextResponse.json(
-        { error: 'Poll is closed' },
+        { error: 'This poll has expired and is closed' },
         { status: 400 }
       );
     }
 
-    if (hasUserVoted(pollId, userId)) {
+    const existingVote = await prisma.vote.findUnique({
+      where: {
+        userId_pollId: {
+          userId,
+          pollId
+        }
+      }
+    });
+
+    if (existingVote) {
       return NextResponse.json(
         { error: 'You have already voted' },
         { status: 400 }
@@ -51,15 +65,16 @@ export async function POST(
     }
 
     // Add vote
-    votes.push({
-      pollId,
-      optionId,
-      userId,
-      createdAt: new Date(),
+    await prisma.vote.create({
+      data: {
+        pollId,
+        optionId,
+        userId
+      }
     });
 
     // Broadcast update to SSE connections
-    broadcastPollUpdate(pollId, () => getPollResults(pollId));
+    await broadcastPollUpdate(pollId, () => getPollResults(pollId));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -76,4 +91,3 @@ export async function POST(
     );
   }
 }
-

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hasUserVoted } from '@/lib/data';
+import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 
 export async function GET(
@@ -9,8 +9,17 @@ export async function GET(
   try {
     const { pollId } = await params;
     const userId = await requireAuth();
-    const voted = hasUserVoted(pollId, userId);
-    return NextResponse.json({ hasVoted: voted });
+    
+    const vote = await prisma.vote.findUnique({
+      where: {
+        userId_pollId: {
+          userId,
+          pollId
+        }
+      }
+    });
+    
+    return NextResponse.json({ hasVoted: !!vote });
   } catch (error: any) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ hasVoted: false });
@@ -21,4 +30,3 @@ export async function GET(
     );
   }
 }
-

@@ -15,21 +15,24 @@ export function removeConnection(pollId: string, controller: ReadableStreamDefau
   }
 }
 
-export function broadcastPollUpdate(pollId: string, getResults: () => any) {
-  const results = getResults();
-  if (!results) return;
+export async function broadcastPollUpdate(pollId: string, getResults: () => Promise<any> | any) {
+  try {
+    const results = await getResults();
+    if (!results) return;
 
-  const data = JSON.stringify(results);
-  const controllers = connections.get(pollId);
-  if (controllers) {
-    controllers.forEach(controller => {
-      try {
-        controller.enqueue(`data: ${data}\n\n`);
-      } catch (error) {
-        // Connection closed, remove it
-        controllers.delete(controller);
-      }
-    });
+    const data = JSON.stringify(results);
+    const controllers = connections.get(pollId);
+    if (controllers) {
+      controllers.forEach(controller => {
+        try {
+          controller.enqueue(`data: ${data}\n\n`);
+        } catch (error) {
+          // Connection closed, remove it
+          controllers.delete(controller);
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Broadcast error:', err);
   }
 }
-

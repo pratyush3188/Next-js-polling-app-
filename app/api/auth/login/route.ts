@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { users, getUserByPasskeyId, getChallenge, deleteChallenge } from '@/lib/data';
+import { getChallenge, deleteChallenge } from '@/lib/data';
+import { prisma } from '@/lib/db';
 import { setSession } from '@/lib/session';
-
-const rpID = process.env.RP_ID || 'localhost';
-const origin = process.env.ORIGIN || `http://${rpID}:3000`;
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +16,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get stored challenge
     const expectedChallenge = getChallenge(challengeKey);
     if (!expectedChallenge) {
       return NextResponse.json(
@@ -27,10 +24,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // authenticationResponse.id comes as base64url from browser
-    // Find user by passkey ID (helper function handles base64/base64url conversion)
     const credentialID = authenticationResponse.id;
-    const user = getUserByPasskeyId(credentialID);
+    const base64Id = Buffer.from(credentialID, 'base64url').toString('base64');
+    
+    const user = await prisma.user.findUnique({
+      where: { passkeyId: base64Id }
+    });
     
     if (!user) {
       return NextResponse.json(
@@ -39,24 +38,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the authentication
-    // Convert stored base64 to base64url for id, and to Uint8Array for publicKey
-    const credentialId = Buffer.from(user.passkeyId, 'base64').toString('base64url');
+    const reqOrigin = request.headers.get('origin') || 'http://localhost:3000';
+    const reqHost = request.headers.get('host')?.split(':')[0] || 'localhost';
+
+    const credentialIdStr = Buffer.from(user.passkeyId, 'base64').toString('base64url');
     const publicKey = new Uint8Array(Buffer.from(user.passkeyPublicKey, 'base64'));
     
     const verification = await verifyAuthenticationResponse({
       response: authenticationResponse,
       expectedChallenge: expectedChallenge,
-      expectedOrigin: origin,
-      expectedRPID: rpID,
+      expectedOrigin: reqOrigin,
+      expectedRPID: reqHost,
       credential: {
-        id: credentialId,
+        id: credentialIdStr,
         publicKey: publicKey,
         counter: 0,
       },
     });
 
-    // Delete used challenge
     deleteChallenge(challengeKey);
 
     if (!verification.verified) {
@@ -80,4 +79,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
