@@ -11,6 +11,7 @@ interface Poll {
   title: string;
   options: PollOption[];
   creatorId: string;
+  creatorUsername?: string;
   createdAt: string;
   expiresAt?: string | null;
   closed: boolean;
@@ -35,6 +36,8 @@ interface PollResult {
 interface Results {
   pollId: string;
   title: string;
+  creatorId?: string;
+  creatorUsername?: string;
   totalVotes: number;
   results: PollResult[];
   closed: boolean;
@@ -503,6 +506,13 @@ export default function PollDetail() {
               </div>
 
               <div className="text-right space-y-1">
+                <div>
+                  <div className="text-[11px] uppercase font-semibold text-slate-400">Created By</div>
+                  <div className="text-xs font-bold text-blue-600">
+                    @{poll.creatorUsername || results?.creatorUsername || 'Anonymous'}
+                  </div>
+                </div>
+
                 <div>
                   <div className="text-[11px] uppercase font-semibold" style={{ color: 'var(--text-muted)' }}>Created On</div>
                   <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>

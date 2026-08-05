@@ -14,6 +14,7 @@ interface Poll {
   title: string;
   options: PollOption[];
   creatorId: string;
+  creatorUsername?: string;
   createdAt: string;
   expiresAt?: string | null;
   closed: boolean;
@@ -365,9 +366,9 @@ export default function Home() {
                       ))}
                     </div>
                     
-                    <div className="pt-6 border-t border-slate-100 text-sm text-slate-400 flex justify-between">
-                      <span>Total Votes</span>
-                      <span className="font-bold text-slate-900">{totalVotes}</span>
+                    <div className="pt-6 border-t border-slate-100 text-sm text-slate-400 flex justify-between items-center">
+                      <span className="text-xs font-semibold text-blue-600">by @{poll.creatorUsername || 'Anonymous'}</span>
+                      <span className="font-bold text-slate-900">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
                     </div>
                   </Link>
                 );

@@ -9,6 +9,7 @@ interface Poll {
   title: string;
   options: PollOption[];
   creatorId: string;
+  creatorUsername?: string;
   createdAt: string;
   expiresAt?: string | null;
   closed: boolean;
@@ -237,9 +238,9 @@ export default function ExplorePage() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: 'var(--border-light)' }}>
-                    <span className="text-xs font-medium text-slate-500">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
-                    <span className="text-xs text-slate-400">{new Date(poll.createdAt).toLocaleDateString()}</span>
+                  <div className="flex items-center justify-between pt-4 border-t text-xs" style={{ borderColor: 'var(--border-light)' }}>
+                    <span className="font-semibold text-blue-600">by @{poll.creatorUsername || 'Anonymous'}</span>
+                    <span className="font-medium text-slate-500">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</span>
                   </div>
                 </Link>
               );

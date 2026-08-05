@@ -10,6 +10,7 @@ interface Poll {
   title: string;
   options: { id: string; text: string; votes: number }[];
   creatorId: string;
+  creatorUsername?: string;
   createdAt: string;
   expiresAt?: string | null;
   closed: boolean;
@@ -156,7 +157,7 @@ export default function DashboardPage() {
                         {poll.title}
                       </div>
                       <div className="text-xs text-slate-400">
-                        {poll.options.length} options • {votesCount} votes • Created {new Date(poll.createdAt).toLocaleDateString()}
+                        by <span className="font-semibold text-blue-600">@{poll.creatorUsername || 'You'}</span> • {poll.options.length} options • {votesCount} votes • {new Date(poll.createdAt).toLocaleDateString()}
                       </div>
                     </div>
 

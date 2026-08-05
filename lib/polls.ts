@@ -4,6 +4,7 @@ export async function getPollResults(pollId: string) {
   const poll = await prisma.poll.findUnique({
     where: { id: pollId },
     include: {
+      creator: { select: { username: true } },
       options: {
         include: {
           _count: { select: { votes: true } }
@@ -31,6 +32,8 @@ export async function getPollResults(pollId: string) {
   return {
     pollId: poll.id,
     title: poll.title,
+    creatorId: poll.creatorId,
+    creatorUsername: poll.creator?.username || 'Anonymous',
     totalVotes,
     results,
     closed: poll.closed,
