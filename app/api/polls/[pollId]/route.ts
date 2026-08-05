@@ -26,11 +26,19 @@ export async function GET(
       );
     }
 
-    // Map Prisma objects to match the expected UI structure
     const mappedPoll = {
-      ...poll,
+      id: poll.id,
+      title: poll.title,
+      creatorId: poll.creatorId,
+      createdAt: poll.createdAt,
+      expiresAt: poll.expiresAt,
+      closed: poll.closed,
+      isPrivate: poll.isPrivate,
+      hasPin: Boolean(poll.pinCode && poll.pinCode.trim().length > 0),
       options: poll.options.map(opt => ({
-        ...opt,
+        id: opt.id,
+        text: opt.text,
+        imageUrl: opt.imageUrl,
         votes: opt._count.votes
       }))
     };

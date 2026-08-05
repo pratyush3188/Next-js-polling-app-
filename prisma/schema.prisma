@@ -28,6 +28,8 @@ model Poll {
   createdAt DateTime @default(now())
   expiresAt DateTime?
   closed    Boolean  @default(false)
+  isPrivate Boolean  @default(false)
+  pinCode   String?
 
   // Relations
   creator   User         @relation(fields: [creatorId], references: [id])

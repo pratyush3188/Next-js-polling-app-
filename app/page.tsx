@@ -17,6 +17,8 @@ interface Poll {
   createdAt: string;
   expiresAt?: string | null;
   closed: boolean;
+  isPrivate?: boolean;
+  hasPin?: boolean;
 }
 
 interface PollOption {
@@ -334,6 +336,11 @@ export default function Home() {
                         <span className={`px-3 py-1 text-xs font-bold rounded-full ${isClosed ? 'bg-red-100 text-red-700' : 'bg-[#E0F2FE] text-blue-700'}`}>
                           {isClosed ? 'Closed' : 'Active'}
                         </span>
+                        {poll.hasPin && (
+                          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                            🔒 PIN Protected
+                          </span>
+                        )}
                         {remainingText && (
                           <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                             ⏱️ {remainingText}

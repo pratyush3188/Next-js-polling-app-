@@ -35,6 +35,8 @@ export async function getPollResults(pollId: string) {
     results,
     closed: poll.closed,
     createdAt: poll.createdAt,
-    expiresAt: poll.expiresAt
+    expiresAt: poll.expiresAt,
+    isPrivate: poll.isPrivate,
+    hasPin: Boolean(poll.pinCode && poll.pinCode.trim().length > 0)
   };
 }

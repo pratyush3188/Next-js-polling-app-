@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import Link from 'next/link';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface Poll {
   id: string;
@@ -13,6 +14,8 @@ interface Poll {
   createdAt: string;
   expiresAt?: string | null;
   closed: boolean;
+  isPrivate?: boolean;
+  hasPin?: boolean;
 }
 
 interface PollOption {
@@ -37,6 +40,8 @@ interface Results {
   closed: boolean;
   createdAt: string;
   expiresAt?: string | null;
+  isPrivate?: boolean;
+  hasPin?: boolean;
 }
 
 export default function PollDetail() {
@@ -50,6 +55,13 @@ export default function PollDetail() {
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState('');
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isPinLocked, setIsPinLocked] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinVerifying, setPinVerifying] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<{
     days: number;
     hours: number;
@@ -74,6 +86,15 @@ export default function PollDetail() {
       .then(data => {
         if (data.poll) {
           setPoll(data.poll);
+          if (data.poll.hasPin) {
+            const userKey = user?.id || 'guest';
+            const isUnlocked = sessionStorage.getItem(`unlocked_poll_${userKey}_${data.poll.id}`);
+            if (!isUnlocked) {
+              setIsPinLocked(true);
+            } else {
+              setIsPinLocked(false);
+            }
+          }
         } else {
           setError('Poll not found');
         }
@@ -136,8 +157,17 @@ export default function PollDetail() {
   }, [results?.expiresAt, poll?.expiresAt]);
 
   useEffect(() => {
-    if (user && poll) {
-      // Check if user has voted
+    if (poll?.hasPin) {
+      const userKey = user?.id || 'guest';
+      const isUnlocked = sessionStorage.getItem(`unlocked_poll_${userKey}_${poll.id}`);
+      if (!isUnlocked) {
+        setIsPinLocked(true);
+      } else {
+        setIsPinLocked(false);
+      }
+    }
+
+    if (user && pollId) {
       fetch(`/api/polls/${pollId}/has-voted`)
         .then(res => res.json())
         .then(data => {
@@ -146,7 +176,7 @@ export default function PollDetail() {
           }
         });
     }
-  }, [user, poll, pollId]);
+  }, [user, poll?.id, poll?.hasPin, pollId]);
 
   const handleVote = async (optionId: string) => {
     if (!user) {
@@ -202,6 +232,105 @@ export default function PollDetail() {
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Loading poll details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleVerifyPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enteredPin) return;
+
+    setPinVerifying(true);
+    setPinError('');
+
+    try {
+      const res = await fetch(`/api/polls/${pollId}/verify-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: enteredPin })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        const userKey = user?.id || 'guest';
+        sessionStorage.setItem(`unlocked_poll_${userKey}_${pollId}`, 'true');
+        setIsPinLocked(false);
+      } else {
+        setPinError(data.error || 'Incorrect PIN code');
+      }
+    } catch (err) {
+      setPinError('Failed to verify PIN');
+    } finally {
+      setPinVerifying(false);
+    }
+  };
+
+  if (isPinLocked) {
+    return (
+      <div className="min-h-[calc(100vh-var(--navbar-height))] flex items-center justify-center py-12 px-4" style={{ background: 'var(--bg-secondary)' }}>
+        <div
+          className="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl max-w-md w-full text-center border border-purple-100 relative overflow-hidden animate-fade-in"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center mx-auto mb-5 shadow-sm">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+
+          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 mb-3">
+            🔒 Private PIN Protected Poll
+          </span>
+
+          <h2 className="text-2xl font-extrabold mb-2 text-slate-900 leading-tight">
+            {poll?.title || 'Security Access Required'}
+          </h2>
+          <p className="text-xs text-slate-500 mb-6">
+            Enter the 4-digit PIN set by the poll creator to view options and cast your vote.
+          </p>
+
+          {pinError && (
+            <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-xs font-semibold border border-red-200">
+              {pinError}
+            </div>
+          )}
+
+          <form onSubmit={handleVerifyPin} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                maxLength={4}
+                value={enteredPin}
+                onChange={(e) => setEnteredPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="• • • •"
+                className="w-full py-3 px-4 text-center tracking-[1em] text-2xl font-mono font-extrabold rounded-2xl border-2 border-purple-200 focus:border-purple-600 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all bg-purple-50/30 text-purple-950"
+                autoFocus
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={pinVerifying || enteredPin.length < 4}
+              className="w-full py-3.5 px-4 bg-purple-600 text-white font-bold text-sm rounded-xl hover:bg-purple-700 transition-colors shadow-lg shadow-purple-600/20 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+            >
+              {pinVerifying ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying PIN...</span>
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                  </svg>
+                  <span>Unlock Poll</span>
+                </>
+              )}
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -316,6 +445,21 @@ export default function PollDetail() {
                     You Voted
                   </span>
                 )}
+
+                {/* Share Poll Button */}
+                <button
+                  onClick={() => setIsShareOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer ml-auto"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="18" cy="5" r="3"/>
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  </svg>
+                  <span>Share Poll</span>
+                </button>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: 'var(--navy-deep)' }}>
                 {poll.title}
@@ -405,15 +549,27 @@ export default function PollDetail() {
                 >
                   {/* Image/GIF Preview if available */}
                   {option.imageUrl && (
-                    <div className="mb-3 rounded-xl overflow-hidden max-h-56 bg-slate-100 border border-slate-200">
+                    <div
+                      onClick={() => setZoomedImage(option.imageUrl || null)}
+                      className="mb-4 rounded-2xl overflow-hidden bg-slate-950/90 border border-slate-200 shadow-md cursor-zoom-in group relative flex items-center justify-center min-h-[220px] max-h-[380px] sm:max-h-[460px] w-full"
+                    >
                       <img
                         src={option.imageUrl}
                         alt={option.text}
-                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        className="w-full h-full object-contain max-h-[380px] sm:max-h-[460px] transition-transform duration-300 group-hover:scale-[1.02]"
                         onError={(e) => {
                           (e.target as HTMLElement).style.display = 'none';
                         }}
                       />
+                      <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-white text-[11px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 pointer-events-none">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8"/>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                          <line x1="11" y1="8" x2="11" y2="14"/>
+                          <line x1="8" y1="11" x2="14" y2="11"/>
+                        </svg>
+                        <span>Click to enlarge</span>
+                      </div>
                     </div>
                   )}
 
@@ -491,6 +647,129 @@ export default function PollDetail() {
           )}
         </div>
       </div>
+
+      {/* Share & QR Code Modal */}
+      {isShareOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center relative">
+            <button
+              onClick={() => setIsShareOpen(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center text-sm font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <rect x="7" y="7" width="3" height="3"/>
+                <rect x="14" y="7" width="3" height="3"/>
+                <rect x="7" y="14" width="3" height="3"/>
+              </svg>
+            </div>
+
+            <h3 className="font-extrabold text-xl text-slate-900 mb-1">Share This Poll</h3>
+            <p className="text-xs text-slate-500 mb-6">Scan QR Code with any phone camera or share via 1-click links</p>
+
+            {/* QR Code Container */}
+            <div className="p-4 bg-white rounded-2xl border-2 border-slate-100 shadow-md mb-6 inline-block">
+              <QRCodeSVG
+                value={typeof window !== 'undefined' ? window.location.href : ''}
+                size={180}
+                bgColor="#FFFFFF"
+                fgColor="#0F172A"
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            {/* Share Actions */}
+            <div className="w-full space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                {/* WhatsApp Share */}
+                <a
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Vote on this poll: "${poll.title}" 👉 ${typeof window !== 'undefined' ? window.location.href : ''}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-3 px-4 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-1.157 4.228 4.45-1.161z"/>
+                  </svg>
+                  <span>WhatsApp</span>
+                </a>
+
+                {/* Twitter / X Share */}
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Vote on this poll: "${poll.title}"`)}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-3 px-4 rounded-xl font-bold text-xs text-white bg-slate-900 hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                  <span>Twitter / X</span>
+                </a>
+              </div>
+
+              {/* Copy Link Button */}
+              <button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    navigator.clipboard.writeText(window.location.href);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2500);
+                  }
+                }}
+                className={`w-full py-3 px-4 rounded-xl font-bold text-xs border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  copied
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>Link Copied to Clipboard!</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <span>Copy Poll Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Lightbox Modal */}
+      {zoomedImage && (
+        <div
+          onClick={() => setZoomedImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in cursor-zoom-out"
+        >
+          <button
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-lg font-bold transition-colors cursor-pointer"
+          >
+            ✕
+          </button>
+          <img
+            src={zoomedImage}
+            alt="Enlarged view"
+            className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const userId = await requireAuth();
     const body = await request.json();
-    const { title, options, expiresAt } = body;
+    const { title, options, expiresAt, isPrivate, pinCode } = body;
 
     if (!title || !options || !Array.isArray(options) || options.length < 2) {
       return NextResponse.json(
@@ -38,12 +38,15 @@ export async function POST(request: NextRequest) {
         title: title.trim(),
         creatorId: userId,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
+        isPrivate: Boolean(isPrivate),
+        pinCode: pinCode ? String(pinCode).trim() : null,
         options: {
           create: parsedOptions
         }
       },
       include: {
-        options: true
+        options: true,
+        creator: { select: { username: true } }
       }
     });
 
@@ -68,6 +71,7 @@ export async function GET() {
     const polls = await prisma.poll.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
+        creator: { select: { username: true } },
         options: {
           include: {
             _count: { select: { votes: true } }
@@ -78,9 +82,19 @@ export async function GET() {
     });
 
     const mappedPolls = polls.map(p => ({
-      ...p,
+      id: p.id,
+      title: p.title,
+      creatorId: p.creatorId,
+      creatorUsername: p.creator?.username || 'Anonymous',
+      createdAt: p.createdAt,
+      expiresAt: p.expiresAt,
+      closed: p.closed,
+      isPrivate: p.isPrivate,
+      hasPin: Boolean(p.pinCode && p.pinCode.trim().length > 0),
       options: p.options.map(opt => ({
-        ...opt,
+        id: opt.id,
+        text: opt.text,
+        imageUrl: opt.imageUrl,
         votes: opt._count.votes
       }))
     }));
