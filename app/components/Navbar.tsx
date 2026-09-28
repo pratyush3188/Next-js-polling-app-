@@ -51,10 +51,8 @@ export default function Navbar() {
         <div className="flex justify-between items-start">
           
           {/* Logo - Left */}
-          <Link href="/" className="flex items-center group w-1/4 pt-1">
-            <span className="text-slate-900 font-extrabold text-2xl tracking-tight">
-              VoteFlow<span className="text-blue-600">.</span>
-            </span>
+          <Link href="/" className="flex items-center group w-1/4 pt-0.5">
+            <img src="/logo.png" alt="VoteFlow Logo" className="h-12 sm:h-14 w-auto object-contain transition-transform duration-300 group-hover:scale-105" />
           </Link>
 
           {/* Nav Links - Center */}

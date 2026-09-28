@@ -22,9 +22,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link href="/" className="flex items-center group mb-4">
-              <span className="text-white font-extrabold text-2xl tracking-tight">
-                VoteFlow<span className="text-blue-500">.</span>
-              </span>
+              <img src="/logo.png" alt="VoteFlow Logo" className="h-12 w-auto object-contain brightness-0 invert opacity-90" />
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed max-w-xs">
               Create beautiful polls, share with your audience, and watch results come in real-time. Secured with WebAuthn Passkeys.
