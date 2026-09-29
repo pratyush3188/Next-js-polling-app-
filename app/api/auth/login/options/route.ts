@@ -8,11 +8,16 @@ export async function POST(request: NextRequest) {
   try {
     const host = request.headers.get('host')?.split(':')[0] || 'localhost';
 
-    const allUsers = await prisma.user.findMany({ select: { passkeyId: true } });
-    
-    const allowCredentials = allUsers.map(user => ({
-      id: Buffer.from(user.passkeyId, 'base64').toString('base64url'),
-    }));
+    const allUsers = await prisma.user.findMany({
+      where: { passkeyId: { not: null } },
+      select: { passkeyId: true },
+    });
+
+    const allowCredentials = allUsers
+      .filter((user): user is { passkeyId: string } => Boolean(user.passkeyId))
+      .map((user) => ({
+        id: Buffer.from(user.passkeyId, 'base64').toString('base64url'),
+      }));
 
     const options = await generateAuthenticationOptions({
       rpID: host,

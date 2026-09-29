@@ -10,8 +10,12 @@ interface Poll {
   title: string;
   options: PollOption[];
   creatorId: string;
+  creatorUsername?: string;
   createdAt: string;
+  expiresAt?: string | null;
   closed: boolean;
+  isPrivate?: boolean;
+  hasPin?: boolean;
 }
 
 interface PollOption {

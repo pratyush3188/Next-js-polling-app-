@@ -31,9 +31,9 @@ export async function POST(request: NextRequest) {
       where: { passkeyId: base64Id }
     });
     
-    if (!user) {
+    if (!user || !user.passkeyId || !user.passkeyPublicKey) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'User or passkey credentials not found' },
         { status: 404 }
       );
     }
